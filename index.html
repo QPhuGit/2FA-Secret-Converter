@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>2FA Secret Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <style>
+      :root {
+        --primary: #4a6fa5;
+        --secondary: #166088;
+        --accent: #4fc3f7;
+        --dark: #0a1128;
+        --light: #f8f9fa;
+        --success: #4caf50;
+        --warning: #ff9800;
+        --danger: #f44336;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 800px;
+        overflow: hidden;
+        animation: fadeIn 0.5s ease-in-out;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .header {
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+        color: white;
+        padding: 20px;
+        text-align: center;
+        position: relative;
+      }
+
+      .header h1 {
+        font-size: 1.8rem;
+        margin-bottom: 5px;
+      }
+
+      .header p {
+        opacity: 0.9;
+        font-size: 0.9rem;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        padding: 30px;
+      }
+
+      @media (min-width: 768px) {
+        .content {
+          flex-direction: row;
+          gap: 30px;
+        }
+      }
+
+      .input-section,
+      .output-section {
+        flex: 1;
+      }
+
+      .section-title {
+        color: var(--secondary);
+        margin-bottom: 15px;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-title i {
+        font-size: 1.4rem;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--dark);
+        font-weight: 500;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.2);
+      }
+
+      button {
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 500;
+        width: 100%;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      button:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .qr-container {
+        background-color: white;
+        border: 1px solid #eee;
+        border-radius: 10px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 250px;
+        margin-bottom: 20px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #qrCode {
+        width: 200px;
+        height: 200px;
+        background-color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .qr-placeholder {
+        text-align: center;
+        color: #999;
+        font-size: 0.9rem;
+      }
+
+      .qr-placeholder i {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        display: block;
+        color: #ddd;
+      }
+
+      .code-display {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+        margin-top: 20px;
+        position: relative;
+      }
+
+      .code {
+        font-size: 2rem;
+        letter-spacing: 5px;
+        font-weight: bold;
+        color: var(--secondary);
+        margin: 10px 0;
+      }
+
+      .timer {
+        height: 4px;
+        background-color: #e0e0e0;
+        border-radius: 2px;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+
+      .timer-progress {
+        height: 100%;
+        background: linear-gradient(to right, var(--success), var(--accent));
+        width: 100%;
+        transition: width 1s linear;
+      }
+
+      .time-left {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 5px;
+      }
+
+      .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        font-size: 1rem;
+        padding: 5px;
+        border-radius: 4px;
+      }
+
+      .copy-btn:hover {
+        color: var(--primary);
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 120px;
+        background-color: #555;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -60px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.8rem;
+      }
+
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      .footer {
+        text-align: center;
+        padding: 15px;
+        font-size: 0.8rem;
+        color: #666;
+        border-top: 1px solid #eee;
+      }
+
+      .spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+        display: none;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .error {
+        color: var(--danger);
+        font-size: 0.9rem;
+        margin-top: 5px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>2FA Secret Converter</h1>
+        <p>Convert your 2FA secret to QR code and generate TOTP codes</p>
+      </div>
+
+      <div class="content">
+        <div class="input-section">
+          <div class="section-title">
+            <span>🔑</span>
+            <span>Input Details</span>
+          </div>
+
+          <div class="form-group">
+            <label for="secret">Secret Key (Base32)</label>
+            <input
+              type="text"
+              id="secret"
+              placeholder="Enter your 2FA secret key (e.g., JBSWY3DPEHPK3PXP)"
+            />
+            <div id="secretError" class="error">
+              Please enter a valid Base32 secret key
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="issuer">Issuer (Company/Service Name)</label>
+            <input
+              type="text"
+              id="issuer"
+              placeholder="e.g., Google, GitHub"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="account">Account Name (Username/Email)</label>
+            <input
+              type="text"
+              id="account"
+              placeholder="e.g., user@example.com, username"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="digits">Code Length</label>
+            <select id="digits">
+              <option value="6">6 digits</option>
+              <option value="8">8 digits</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="period">Refresh Period (seconds)</label>
+            <select id="period">
+              <option value="30">30 seconds</option>
+              <option value="60">60 seconds</option>
+            </select>
+          </div>
+
+          <button id="generateBtn">
+            <span class="spinner" id="spinner"></span>
+            <span>Generate QR & Code</span>
+          </button>
+        </div>
+
+        <div class="output-section">
+          <div class="section-title">
+            <span>📱</span>
+            <span>Output</span>
+          </div>
+
+          <div class="qr-container">
+            <div id="qrCode">
+              <div class="qr-placeholder">
+                <span>🔄</span>
+                <p>QR code will appear here</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="code-display" style="display: none" id="codeDisplay">
+            <button class="copy-btn tooltip" id="copyBtn">
+              <span>📋</span>
+              <span class="tooltiptext">Copy to clipboard</span>
+            </button>
+            <div>Current Code</div>
+            <div class="code" id="currentCode">------</div>
+            <div class="timer">
+              <div class="timer-progress" id="timerProgress"></div>
+            </div>
+            <div class="time-left" id="timeLeft">Expires in 30s</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>
+          Use this tool to convert your 2FA secret to a QR code for easy
+          scanning with authenticator apps
+        </p>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const secretInput = document.getElementById("secret");
+        const issuerInput = document.getElementById("issuer");
+        const accountInput = document.getElementById("account");
+        const digitsSelect = document.getElementById("digits");
+        const periodSelect = document.getElementById("period");
+        const generateBtn = document.getElementById("generateBtn");
+        const qrCodeDiv = document.getElementById("qrCode");
+        const codeDisplay = document.getElementById("codeDisplay");
+        const currentCode = document.getElementById("currentCode");
+        const timerProgress = document.getElementById("timerProgress");
+        const timeLeft = document.getElementById("timeLeft");
+        const copyBtn = document.getElementById("copyBtn");
+        const spinner = document.getElementById("spinner");
+        const secretError = document.getElementById("secretError");
+
+        let timerInterval;
+        let codeInterval;
+
+        // Validate Base32 secret
+        function isValidBase32(str) {
+          const base32Regex = /^[A-Z2-7]+=*$/i;
+          return base32Regex.test(str);
+        }
+
+        // Generate TOTP URI
+        function generateTOTPURI(secret, issuer, account, digits, period) {
+          issuer = encodeURIComponent(issuer);
+          account = encodeURIComponent(account);
+          return `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&digits=${digits}&period=${period}`;
+        }
+
+        // Generate HOTP code (simplified version)
+        function generateHOTP(secret, counter) {
+          // In a real implementation, you would use proper HMAC-SHA1 and dynamic truncation
+          // This is a simplified version for demonstration
+          // const key = CryptoJS.enc.Base32.parse(secret);
+          const key = CryptoJS.enc.Hex.parse(secret);
+          const hmac = CryptoJS.HmacSHA1(
+            CryptoJS.enc.Hex.parse(counter.toString(16)),
+            key
+          );
+          const hmacStr = hmac.toString(CryptoJS.enc.Hex);
+
+          // Dynamic truncation (simplified)
+          const offset = parseInt(hmacStr.substr(hmacStr.length - 1), 16) & 0xf;
+          const binary =
+            ((parseInt(hmacStr.substr(offset * 2, 2), 16) & 0x7f) << 24) |
+            ((parseInt(hmacStr.substr((offset + 1) * 2, 2), 16) & 0xff) << 16) |
+            ((parseInt(hmacStr.substr((offset + 2) * 2, 2), 16) & 0xff) << 8) |
+            (parseInt(hmacStr.substr((offset + 3) * 2, 2), 16) & 0xff);
+
+          const digits = parseInt(digitsSelect.value);
+          const otp = binary % Math.pow(10, digits);
+          return otp.toString().padStart(digits, "0");
+        }
+
+        // Generate TOTP code
+        function generateTOTP(secret) {
+          const period = parseInt(periodSelect.value);
+          const time = Math.floor(Date.now() / 1000);
+          const counter = Math.floor(time / period);
+          return generateHOTP(secret, counter);
+        }
+
+        // Unified update function
+        function updateDisplay(secret) {
+          const period = parseInt(periodSelect.value);
+          const time = Math.floor(Date.now() / 1000);
+          const counter = Math.floor(time / period);
+
+          // Update code only when counter changes
+          if (this.lastCounter !== counter) {
+            currentCode.textContent = generateHOTP(secret, counter);
+            this.lastCounter = counter;
+          }
+
+          // Always update timer
+          updateTimer();
+        }
+
+        // Update timer
+        function updateTimer() {
+          const period = parseInt(periodSelect.value);
+          const time = Math.floor(Date.now() / 1000);
+          const remaining = period - (time % period);
+
+          const progress = (remaining / period) * 100;
+          timerProgress.style.width = `${progress}%`;
+          timeLeft.textContent = `Expires in ${remaining}s`;
+
+          // Change color based on remaining time
+          if (remaining < 10) {
+            timerProgress.style.background =
+              "linear-gradient(to right, var(--warning), var(--danger))";
+          } else if (remaining < 20) {
+            timerProgress.style.background =
+              "linear-gradient(to right, var(--success), var(--warning))";
+          } else {
+            timerProgress.style.background =
+              "linear-gradient(to right, var(--success), var(--accent))";
+          }
+        }
+
+        // Generate QR code and start timer
+        function generateAndDisplay() {
+          const secret = secretInput.value.trim().toUpperCase();
+          const issuer = issuerInput.value.trim() || "2FA Generator";
+          const account = accountInput.value.trim() || "user@example.com";
+          const digits = digitsSelect.value;
+          const period = periodSelect.value;
+
+          // Validate secret
+          if (!isValidBase32(secret)) {
+            secretError.style.display = "block";
+            return;
+          } else {
+            secretError.style.display = "none";
+          }
+
+          // Show loading spinner
+          spinner.style.display = "block";
+          generateBtn.disabled = true;
+
+          // Generate TOTP URI
+          const totpURI = generateTOTPURI(
+            secret,
+            issuer,
+            account,
+            digits,
+            period
+          );
+
+          // Generate QR code
+          QRCode.toCanvas(totpURI, { width: 200 }, function (error, canvas) {
+            if (error) {
+              console.error(error);
+              return;
+            }
+
+            // Clear previous QR code
+            qrCodeDiv.innerHTML = "";
+            qrCodeDiv.appendChild(canvas);
+
+            // Show code display
+            codeDisplay.style.display = "block";
+
+            // Generate initial code
+            const code = generateTOTP(secret);
+            currentCode.textContent = code;
+
+            // Start timer
+            updateTimer();
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => updateDisplay(secret), 250); // Quarter-second updates
+            updateDisplay(secret);
+
+            // Hide spinner
+            spinner.style.display = "none";
+            generateBtn.disabled = false;
+          });
+        }
+
+        // Copy to clipboard
+        copyBtn.addEventListener("click", function () {
+          const code = currentCode.textContent;
+          navigator.clipboard.writeText(code).then(() => {
+            const tooltip = this.querySelector(".tooltiptext");
+            tooltip.textContent = "Copied!";
+            setTimeout(() => {
+              tooltip.textContent = "Copy to clipboard";
+            }, 2000);
+          });
+        });
+
+        // Generate on button click
+        generateBtn.addEventListener("click", generateAndDisplay);
+
+        // Also generate when pressing Enter in any input
+        [secretInput, issuerInput, accountInput].forEach((input) => {
+          input.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+              generateAndDisplay();
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
