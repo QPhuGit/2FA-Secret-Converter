@@ -343,6 +343,7 @@
             <label for="issuer">Issuer (Company/Service Name)</label>
             <input
               type="text"
+              value="WikiLand"
               id="issuer"
               placeholder="e.g., Google, GitHub"
             />
@@ -353,7 +354,7 @@
             <input
               type="text"
               id="account"
-              placeholder="e.g., user@example.com, username"
+              placeholder="e.g., user@example.com"
             />
           </div>
 
@@ -449,30 +450,67 @@
           account = encodeURIComponent(account);
           return `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&digits=${digits}&period=${period}`;
         }
+        function base32ToHex(base32) {
+          const base32chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+          let bits = "";
+          let hex = "";
+
+          base32 = base32.toUpperCase();
+
+          // Add padding if necessary
+          while (base32.length % 8 !== 0) {
+            base32 += "=";
+          }
+
+          for (let i = 0; i < base32.length; i++) {
+            if (base32[i] === "=") continue;
+            const value = base32chars.indexOf(base32[i]);
+            if (value === -1) throw new Error("Invalid base32 character: " + base32[i]);
+            bits += value.toString(2).padStart(5, "0");
+          }
+
+          // Convert bits to hex
+          for (let i = 0; i < Math.floor(bits.length / 4); i++) {
+            const chunk = bits.substr(i * 4, 4);
+            hex += parseInt(chunk, 2).toString(16);
+          }
+
+          return hex;
+        }
 
         // Generate HOTP code (simplified version)
         function generateHOTP(secret, counter) {
+          try {
           // In a real implementation, you would use proper HMAC-SHA1 and dynamic truncation
-          // This is a simplified version for demonstration
-          // const key = CryptoJS.enc.Base32.parse(secret);
-          const key = CryptoJS.enc.Hex.parse(secret);
-          const hmac = CryptoJS.HmacSHA1(
-            CryptoJS.enc.Hex.parse(counter.toString(16)),
-            key
-          );
+          // Convert Base32 secret to hex
+          const secretHex = base32ToHex(secret);
+          // Convert hex to WordArray that CryptoJS can use
+          const key = CryptoJS.enc.Hex.parse(secretHex);
+          // const key = CryptoJS.enc.Hex.parse(secret);
+          // Convert counter to padded 8-byte hex string
+          let counterHex = counter.toString(16).padStart(16, '0');
+          const counterBytes = CryptoJS.enc.Hex.parse(counterHex);
+
+          const hmac = CryptoJS.HmacSHA1(counterBytes,key);
           const hmacStr = hmac.toString(CryptoJS.enc.Hex);
 
           // Dynamic truncation (simplified)
           const offset = parseInt(hmacStr.substr(hmacStr.length - 1), 16) & 0xf;
-          const binary =
-            ((parseInt(hmacStr.substr(offset * 2, 2), 16) & 0x7f) << 24) |
-            ((parseInt(hmacStr.substr((offset + 1) * 2, 2), 16) & 0xff) << 16) |
-            ((parseInt(hmacStr.substr((offset + 2) * 2, 2), 16) & 0xff) << 8) |
-            (parseInt(hmacStr.substr((offset + 3) * 2, 2), 16) & 0xff);
+          let binary = parseInt(hmacStr.substr(offset * 2, 8), 16) & 0x7fffffff;
+          // const binary =
+          //   ((parseInt(hmacStr.substr(offset * 2, 2), 16) & 0x7f) << 24) |
+          //   ((parseInt(hmacStr.substr((offset + 1) * 2, 2), 16) & 0xff) << 16) |
+          //   ((parseInt(hmacStr.substr((offset + 2) * 2, 2), 16) & 0xff) << 8) |
+          //   (parseInt(hmacStr.substr((offset + 3) * 2, 2), 16) & 0xff);
 
           const digits = parseInt(digitsSelect.value);
           const otp = binary % Math.pow(10, digits);
           return otp.toString().padStart(digits, "0");
+        }
+        catch (error) {
+          console.error("Error generating HOTP code:", error);
+          return "ERROR";
+        }
         }
 
         // Generate TOTP code
@@ -574,6 +612,13 @@
             clearInterval(timerInterval);
             timerInterval = setInterval(() => updateDisplay(secret), 250); // Quarter-second updates
             updateDisplay(secret);
+
+            // Update code every period
+            // clearInterval(codeInterval);
+            // codeInterval = setInterval(() => {
+            //   const newCode = generateTOTP(secret);
+            //   currentCode.textContent = newCode;
+            // }, period * 1000);
 
             // Hide spinner
             spinner.style.display = "none";
